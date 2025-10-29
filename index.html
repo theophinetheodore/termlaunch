@@ -11,10 +11,24 @@
   <style>
     @font-face {
       font-display: swap;
-      font-family: 'Cascadia';
+      font-family: 'Adwaita Mono';
       font-style: normal;
       font-weight: 400;
-      src: url('/cascadia.woff2') format('woff2');
+      src: url('/fonts/AdwaitaMono-Regular.woff2') format('woff2');
+    }
+    @font-face {
+      font-display: swap;
+      font-family: 'Adwaita Mono';
+      font-style: bold;
+      font-weight: 900;
+      src: url('/fonts/AdwaitaMono-Bold.woff2') format('woff2');
+    }
+    @font-face {
+      font-display: swap;
+      font-family: 'Adwaita Mono';
+      font-style: italic;
+      font-weight: 400;
+      src: url('/fonts/AdwaitaMono-Italic.woff2') format('woff2');
     }
     body {
       max-width: 100dvw;
@@ -23,14 +37,19 @@
       padding-top: 1rem;
       font-family: monospace;
       font-size: 0.9rem;
+      letter-spacing: -0.08rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
     }
     * {
       color: white;
-      font-family: "Cascadia", monospace;
+      font-family: "Adwaita Mono", monospace;
       user-select: none;
     }
     pre {
-      font-size: 0.8rem;
+      font-size: 0.7rem;
+      letter-spacing: 0;
     }
     input {
       font-size: 0.9rem;
@@ -39,29 +58,52 @@
       background: transparent;
       margin-top: 0.5rem;
       width: 60dvw;
+      letter-spacing: -0.08rem;
     }
     #app-name {
       text-decoration: underline;
     }
     #apps, #HN {
-      height: 40dvh;
+      height: 30dvh;
       border: 2px solid #393939;
       border-radius: 0.5rem;
       padding: 0.5rem;
       overflow: auto;
     }
     #HN a, #lob a { display: block; }
+    #time {
+      height: 5rem;
+      border: 1px solid gray;
+      border-radius: 0.5rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 2rem;
+    }
+    #useful button {
+      padding: .2rem .7rem;
+      background: linear-gradient(to bottom,#0c0c0c,#262626);
+      border-radius: .3rem;
+      border: 1px solid gray;
+    }
   </style>
 </head>
 
 <body>
   <div id="fetch"></div>
+  <div id="time">00:00:00</div>
+  <div id="useful">
+    <span>useful commands: </span>
+    <button id="clearButton">clear</button>
+  </div>
   <div id="terminal"></div>
 </body>
 
 <script>
   const terminal = document.getElementById('terminal');
   const fetchDiv = document.getElementById('fetch');
+  const timeDiv = document.getElementById('time');
+  const clearButton = document.getElementById('clearButton');
 
   document.addEventListener('DOMContentLoaded', async () => {
     fetchDiv.innerHTML = getFetch();
@@ -110,6 +152,9 @@
       } else if (command == "call") {
         Bridge.requestLaunchApp("com.android.contacts");
         response = "opening contacts..."
+      } else if (command == "term") {
+        Bridge.requestLaunchApp("com.termux");
+        response = "opening termux..."
       } else if (command == "toggle") {
         response = toggleBridgeButtonVisibility();
       } else if (command.startsWith("console")) {
@@ -137,29 +182,49 @@
 
       addInputField();
     }
+
+    function updateTime() {
+        const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        timeDiv.innerHTML = time;
+    }
+
+    setInterval(() => {
+        updateTime();
+    }, 1000);
+
+    clearButton.addEventListener("click", () => {
+      terminal.innerHTML = '';
+      addInputField();
+    });
   });
   // DOMContentLoaded event Listener end
 
   // "SHELL" FUNCTIONS START HERE
 
   function open(apps, text) {
-    if (text.length <= 2) {
+    if (text.length <= 1) {
       return "text is too short."
     }
 
-    let packageName = "";
+    let similarApps = [];
+
+    // let label = "";
     apps.forEach(item => {
-      // if (item.packageName.includes(text) || item.label.toLowerCase().includes(text)) {
       if (item.label.toLowerCase().startsWith(text)) {
-        packageName = item.packageName;
-        Bridge.requestLaunchApp(item.packageName);
+        similarApps.push(item);
       }
     });
 
-    if (packageName.length != 0) {
-      return `opening ${packageName}...`;
+    if (similarApps.length == 1) {
+        Bridge.requestLaunchApp(similarApps[0].packageName);
+      return `opening ${similarApps[0].label.toLowerCase()}...`;
     } else {
-      return `app not found.`;
+      text = "<div>";
+      for (const app of similarApps) {
+        text += `<span id="app-name" onclick='Bridge.requestLaunchApp("${app.packageName}");'>${app.label.toLowerCase()}</span><br>`;
+      }
+    text += "</div>"
+    return text;
     }
   }
 
@@ -178,7 +243,7 @@
     for (const app of apps) {
       text += `<span id="app-name"
         onclick='Bridge.requestLaunchApp("${app.packageName}");'>
-          ${app.packageName}
+          ${app.label.toLowerCase()}
         </span><br>`;
     }
     text += "</div>"
@@ -214,6 +279,8 @@
       - date: prints date.<br>
       - apps: prints list of apps.<br>
       - x/open [query]: opens app.<br>
+      - term: open termux.<br>
+      - call: open com.android.contacts.<br>
       - remove [app.packageName]: removes app.<br>
       - info [app.packageName]: opens app info.<br>
       - toggle: toggles bridge button.<br>
